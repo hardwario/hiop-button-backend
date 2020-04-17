@@ -16,6 +16,7 @@ export const notifyFn = async (req: Request, res: HttpsResponse) => {
     console.log(req.body);
     console.log(req.method);
     console.log(req.url);
+    let buttonData: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>;
     try {
       if (req.method === "POST") {
         if (req.header("X-Api-Key") !== cloudAuth.token) {
@@ -25,7 +26,8 @@ export const notifyFn = async (req: Request, res: HttpsResponse) => {
         if (!req.body.id) {
           return res.status(400).send("Missing request data");
         }
-        if (!(body.button0 || body.button1 || body.button2 || body.button3)) {
+        buttonData = await getDeviceDataById(body.id);
+        if (!buttonData.exists) {
           await create(req.body.id);
           return res.send(201).send("{}");
         }
@@ -36,7 +38,7 @@ export const notifyFn = async (req: Request, res: HttpsResponse) => {
             body.button2,
             body.button3
           );
-          await notify(body.id, number);
+          await notify(body.id, number, buttonData);
           return res.send("Notifying... ");
         } catch (error) {
           console.log("Inside notify");
@@ -57,16 +59,19 @@ const create = (id: string) => {
   return Button.add(id);
 };
 
-const notify = async (deviceId: string, buttonNumber: number) => {
-  const buttonData = await getDeviceDataById(deviceId);
+const notify = async (
+  deviceId: string,
+  buttonNumber: number,
+  buttonData: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>
+) => {
   const button = new Button(buttonData.data() as ButtonData);
   if (button.text && button.phone!.length > 0) {
     return button.notify(buttonNumber);
   } else {
-    throw new Error(`Missing data`);
+    return;
   }
 };
 
 module.exports = {
-  notifyFn
+  notifyFn,
 };
